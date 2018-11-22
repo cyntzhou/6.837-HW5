@@ -71,6 +71,10 @@ void drawScene(GLint program, Matrix4f V, Matrix4f P) {
         
         GLuint gltexture = gltextures[batch.mat.diffuse_texture];
         glBindTexture(GL_TEXTURE_2D, gltexture);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, fb_depthtex);
+        glActiveTexture(GL_TEXTURE0);
         
         recorder.draw();
     }
@@ -86,7 +90,7 @@ void draw() {
     // - compute camera matrices (light source as camera)
     glUseProgram(program_color);
     // - call drawScene
-    drawScene(program_light, getLightView(), getLightProjection());
+    drawScene(program_color, getLightView(), getLightProjection());
 
     // 1. LIGHT PASS
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -171,16 +175,16 @@ void freeFramebuffer() {
 
 Matrix4f getLightView() {
     Vector3f center = Vector3f(0.f);
-    Vector3f eye = light_dir;
-    Vector3f up = Vector3f::cross(light_dir, Vector3f(1, 0, 0));
+    Vector3f eye = 20*light_dir;
+    Vector3f up = Vector3f::cross(-light_dir, Vector3f(1, 0, 0));
     return Matrix4f::lookAt(eye, center, up);
 }
 
 Matrix4f getLightProjection() {
-    float xScale = 1;
-    float yScale = 1;
-    float zNear = 1;
-    float zFar = 2;
+    float xScale = 50;
+    float yScale = 50;
+    float zNear = 0;
+    float zFar = 100;
     return Matrix4f::orthographicProjection(xScale, yScale, zNear, zFar);
 }
 
