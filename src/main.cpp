@@ -68,6 +68,10 @@ void drawScene(GLint program, Matrix4f V, Matrix4f P) {
             recorder.record(scene.positions[index], scene.normals[index], Vector3f(scene.texcoords[index], 0.f));
         }
         updateMaterialUniforms(program, batch.mat.diffuse, batch.mat.ambient, batch.mat.specular, batch.mat.shininess);
+        
+        GLuint gltexture = gltextures[batch.mat.diffuse_texture];
+        glBindTexture(GL_TEXTURE_2D, gltexture);
+        
         recorder.draw();
     }
 }
@@ -75,9 +79,14 @@ void drawScene(GLint program, Matrix4f V, Matrix4f P) {
 void draw() {
     // 2. DEPTH PASS
     // - bind framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // - configure viewport
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
     // - compute camera matrices (light source as camera)
+    glUseProgram(program_color);
     // - call drawScene
+    drawScene(program_light, getLightView(), getLightProjection());
 
     // 1. LIGHT PASS
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -91,6 +100,88 @@ void draw() {
 
     // 3. DRAW DEPTH TEXTURE AS QUAD
     // drawTexturedQuad() helper in main.h is useful here.
+    glViewport(0, 0, 256, 256);
+    drawTexturedQuad(fb_depthtex);
+
+    glViewport(256, 0, 256, 256);
+    drawTexturedQuad(fb_colortex);
+}
+
+void loadTextures() {
+    for (auto it = scene.textures.begin(); it != scene.textures.end(); ++it)
+    {
+        std::string name = it->first;
+        rgbimage& im = it->second;
+        // Create OpenGL Texture
+        GLuint gltexture;
+        glGenTextures(1, &gltexture);
+        glBindTexture(GL_TEXTURE_2D, gltexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, im.w, im.h, 0, GL_RGB, GL_UNSIGNED_BYTE, im.data.data());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+        gltextures.insert(std::make_pair(name, gltexture));
+    }
+}
+
+void freeTextures() {
+    for (auto it = gltextures.begin(); it != gltextures.end(); ++it)
+    {
+        std::string name = it->first;
+        GLuint& gltexture = it->second;
+        glDeleteTextures(1, &gltexture);
+    }
+}
+
+void loadFramebuffer() {
+    for (auto it = scene.textures.begin(); it != scene.textures.end(); ++it)
+    {
+        // color texture
+        glGenTextures(1, &fb_colortex);
+        glBindTexture(GL_TEXTURE_2D, fb_colortex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4096, 4096, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+        // depth texture
+        glGenTextures(1, &fb_depthtex);
+        glBindTexture(GL_TEXTURE_2D, fb_depthtex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, 4096, 4096, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+        glGenFramebuffers(1, &fb);
+        glBindFramebuffer(GL_FRAMEBUFFER, fb); 
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                GL_TEXTURE_2D, fb_colortex, 0); 
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                                GL_TEXTURE_2D, fb_depthtex, 0); 
+
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            printf("ERROR, incomplete framebuffer\n");
+            exit(-1);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+}
+
+void freeFramebuffer() {
+    glDeleteTextures(1, &fb_colortex);
+    glDeleteTextures(1, &fb_depthtex);
+    glDeleteFramebuffers(1, &fb);
+}
+
+Matrix4f getLightView() {
+    Vector3f center = Vector3f(0.f);
+    Vector3f eye = light_dir;
+    Vector3f up = Vector3f::cross(light_dir, Vector3f(1, 0, 0));
+    return Matrix4f::lookAt(eye, center, up);
+}
+
+Matrix4f getLightProjection() {
+    float xScale = 1;
+    float yScale = 1;
+    float zNear = 1;
+    float zFar = 2;
+    return Matrix4f::orthographicProjection(xScale, yScale, zNear, zFar);
 }
 
 // Main routine.
@@ -127,8 +218,8 @@ int main(int argc, char* argv[])
     glEnable(GL_BLEND);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     // TODO add loadXYZ() function calls here
-    // loadTextures();
-    // loadFramebuffer();
+    loadTextures();
+    loadFramebuffer();
 
     camera.SetDimensions(600, 600);
     camera.SetPerspective(50);
@@ -184,8 +275,8 @@ int main(int argc, char* argv[])
     // All OpenGL resource that are created with
     // glGen* or glCreate* must be freed.
     // TODO: add freeXYZ() function calls here
-    // freeFramebuffer();
-    // freeTextures();
+    freeFramebuffer();
+    freeTextures();
 
     glfwDestroyWindow(window);
 

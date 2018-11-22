@@ -13,6 +13,12 @@
 // globals
 GLFWwindow* window;
 
+std::map<std::string, GLuint> gltextures;
+
+GLuint fb;          // framebugger handle
+GLuint fb_depthtex; // framebuffer depth texture handle
+GLuint fb_colortex; // framebuffer color texture handle
+
 // shader programs
 // see loadPrograms() and freePrograms()
 GLuint program_quad;

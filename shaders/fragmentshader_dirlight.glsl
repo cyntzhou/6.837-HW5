@@ -17,6 +17,7 @@ uniform float shininess;
 uniform float alpha;
 
 // TODO add more uniforms
+uniform sampler2D diffuseTex;
 
 uniform vec3 lightPos;
 uniform vec3 lightDiff;
@@ -52,7 +53,14 @@ void main () {
 	// TODO implement texture mapping here
 	// TODO implement shadow mapping here
 
-    // vec3 kd = diffColor;
-    vec3 kd = var_Color.xyz;
+    vec4 tex = texture(diffuseTex, var_Color.xy);
+    vec3 kd = diffColor;
+    if (tex.x > 0 || tex.y > 0 || tex.z > 0)
+    {
+        kd = tex.xyz;
+    }
     out_Color = vec4(ambientColor + blinn_phong(kd).xyz, 1);
+
+    // out_Color = vec4(var_Color.x, var_Color.y, 0, 1);
+    // out_Color = texture(diffuseTex, var_Color.xy) + vec4(blinn_phong(kd).xyz, 1);
 }
